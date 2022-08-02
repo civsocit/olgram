@@ -74,14 +74,14 @@ async def send_user_message(message: types.Message, super_chat_id: int, bot):
     """Переслать сообщение от пользователя, добавлять к нему user info при необходимости"""
     if bot.enable_additional_info:
         user_info = _("Сообщение от пользователя ")
-        user_info += message.from_user.full_name
+        user_info += message.from_user.get_mention(as_html=True)
         if message.from_user.username:
             user_info += " | @" + message.from_user.username
-        user_info += f" | #{message.from_user.id}"
+        user_info += f" | #ID{message.from_user.id}"
 
         # Добавлять информацию в конец текста
         if message.content_type == types.ContentType.TEXT and len(message.text) + len(user_info) < 4093:  # noqa:E721
-            new_message = await message.bot.send_message(super_chat_id, message.text + "\n\n" + user_info)
+            new_message = await message.bot.send_message(super_chat_id, message.text + "\n\n" + user_info, parse_mode='HTML')
         else:  # Не добавлять информацию в конец текста, информация отдельным сообщением
             new_message = await message.bot.send_message(super_chat_id, text=user_info)
             new_message_2 = await message.copy_to(super_chat_id, reply_to_message_id=new_message.message_id)
