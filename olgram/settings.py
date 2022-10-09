@@ -91,8 +91,8 @@ class ServerSettings(AbstractSettings):
         return "/cert/public.pem"
 
     @classmethod
-    def append_text(cls) -> str:
-        return "\n\nЭтот бот создан с помощью @OlgramBot"
+    def append_text(cls, _: ty.Callable) -> str:
+        return _("\n\nЭтот бот создан с помощью @OlgramBot")
 
     @classmethod
     @lru_cache

@@ -119,13 +119,18 @@ async def send_bot_menu(bot: Bot, call: types.CallbackQuery):
                                                                    chat=empty))
     )
     keyboard.insert(
-        types.InlineKeyboardButton(text=_("<< Назад"),
-                                   callback_data=menu_callback.new(level=0, bot_id=empty, operation=empty, chat=empty))
+        types.InlineKeyboardButton(text=_("Рассылка"),
+                                   callback_data=menu_callback.new(level=2, bot_id=bot.id, operation="broadcast",
+                                                                   chat=empty))
     )
     keyboard.insert(
         types.InlineKeyboardButton(text=_("Опции"),
                                    callback_data=menu_callback.new(level=2, bot_id=bot.id, operation="settings",
                                                                    chat=empty))
+    )
+    keyboard.insert(
+        types.InlineKeyboardButton(text=_("<< Назад"),
+                                   callback_data=menu_callback.new(level=0, bot_id=empty, operation=empty, chat=empty))
     )
 
     await edit_or_create(call, dedent(_("""
@@ -200,6 +205,41 @@ async def send_bot_settings_menu(bot: Bot, call: types.CallbackQuery):
         text += _("Olgram подпись: <b>{0}</b>").format(olgram_turn)
 
     await edit_or_create(call, text, reply_markup=keyboard, parse_mode="HTML")
+
+
+async def send_bot_broadcast_menu(bot: Bot, call: ty.Optional[types.CallbackQuery] = None,
+                                  chat_id: ty.Optional[int] = None, text: ty.Optional[str] = None):
+    if call:
+        await call.answer()
+    keyboard = types.InlineKeyboardMarkup(row_width=2)
+    keyboard.insert(
+        types.InlineKeyboardButton(text=_("<< Назад"),
+                                   callback_data=menu_callback.new(level=1, bot_id=bot.id, operation=empty, chat=empty))
+    )
+    keyboard.insert(
+        types.InlineKeyboardButton(text=_("Начать рассылку"),
+                                   callback_data=menu_callback.new(level=3, bot_id=bot.id, operation="start_broadcast",
+                                                                   chat=empty))
+    )
+
+    if text:
+        text = dedent(_("""
+        Сейчас вы редактируете текст, который будет отправлен всем пользователям бота @{0} после начала рассылки.
+
+        Текущий текст:
+        <pre>
+        {1}
+        </pre>
+        Отправьте сообщение, чтобы изменить текст.
+        """)).format(bot.name, text)
+    else:
+        text = _(
+            "Отправьте сообщение с текстом, который будет отправлен всем пользователям бота @{0} после начала рассылки."
+        ).format(bot.name)
+    if call:
+        await edit_or_create(call, text, keyboard, parse_mode="HTML")
+    else:
+        await AioBot.get_current().send_message(chat_id, text, reply_markup=keyboard, parse_mode="HTML")
 
 
 async def send_bot_text_menu(bot: Bot, call: ty.Optional[types.CallbackQuery] = None, chat_id: ty.Optional[int] = None):
@@ -342,7 +382,17 @@ async def send_bot_templates_menu(bot: Bot, call: ty.Optional[types.CallbackQuer
         await AioBot.get_current().send_message(chat_id, text, reply_markup=keyboard, parse_mode="HTML")
 
 
-@dp.message_handler(state="wait_start_text", content_types="text", regexp="^[^/].+")  # Not command
+@dp.message_handler(state="wait_broadcast_text", content_types="text", regexp="^[^/].*")  # Not command
+async def broadcast_text_received(message: types.Message, state: FSMContext):
+    broadcast_text = message.html_text
+    async with state.proxy() as proxy:
+        bot_id = proxy.get("bot_id")
+        proxy["broadcast_text"] = broadcast_text
+    bot = await Bot.get_or_none(pk=bot_id)
+    await send_bot_broadcast_menu(bot, chat_id=message.chat.id, text=broadcast_text)
+
+
+@dp.message_handler(state="wait_start_text", content_types="text", regexp="^[^/].*")  # Not command
 async def start_text_received(message: types.Message, state: FSMContext):
     async with state.proxy() as proxy:
         bot_id = proxy.get("bot_id")
@@ -352,7 +402,7 @@ async def start_text_received(message: types.Message, state: FSMContext):
     await send_bot_text_menu(bot, chat_id=message.chat.id)
 
 
-@dp.message_handler(state="wait_second_text", content_types="text", regexp="^[^/].+")  # Not command
+@dp.message_handler(state="wait_second_text", content_types="text", regexp="^[^/].*")  # Not command
 async def second_text_received(message: types.Message, state: FSMContext):
     async with state.proxy() as proxy:
         bot_id = proxy.get("bot_id")
@@ -362,7 +412,7 @@ async def second_text_received(message: types.Message, state: FSMContext):
     await send_bot_second_text_menu(bot, chat_id=message.chat.id)
 
 
-@dp.message_handler(state="wait_template", content_types="text", regexp="^[^/](.+)?")  # Not command
+@dp.message_handler(state="wait_template", content_types="text", regexp="^[^/].*")  # Not command
 async def template_received(message: types.Message, state: FSMContext):
     async with state.proxy() as proxy:
         bot_id = proxy.get("bot_id")
@@ -423,6 +473,11 @@ async def callback(call: types.CallbackQuery, callback_data: dict, state: FSMCon
             return await send_bot_statistic_menu(bot, call)
         if operation == "settings":
             return await send_bot_settings_menu(bot, call)
+        if operation == "broadcast":
+            await state.set_state("wait_broadcast_text")
+            async with state.proxy() as proxy:
+                proxy["bot_id"] = bot.id
+            return await send_bot_broadcast_menu(bot, call)
         if operation == "text":
             await state.set_state("wait_start_text")
             async with state.proxy() as proxy:
@@ -457,6 +512,10 @@ async def callback(call: types.CallbackQuery, callback_data: dict, state: FSMCon
         if operation == "reset_second_text":
             await bot_actions.reset_bot_second_text(bot, call)
             return await send_bot_second_text_menu(bot, call)
+        if operation == "start_broadcast":
+            async with state.proxy() as proxy:
+                text = proxy.get("broadcast_text")
+            return await bot_actions.start_broadcast(bot, call, text)
         if operation == "templates":
             await state.set_state("wait_template")
             async with state.proxy() as proxy:

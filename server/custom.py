@@ -213,14 +213,13 @@ async def handle_operator_message(message: types.Message, super_chat_id: int, bo
 
 
 async def message_handler(message: types.Message, *args, **kwargs):
-    _ = _get_translator(message)
     bot = db_bot_instance.get()
 
     if message.text and message.text == "/start":
         # На команду start нужно ответить, не пересылая сообщение никуда
         text = bot.start_text
         if bot.enable_olgram_text:
-            text += _(ServerSettings.append_text())
+            text += ServerSettings.append_text(_get_translator(message))
         return SendMessage(chat_id=message.chat.id, text=text, parse_mode="HTML")
 
     if message.text and message.text == "/security_policy":

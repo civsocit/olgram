@@ -37,4 +37,4 @@ async def info(message: types.Message, state: FSMContext):
                          _("Входящих сообщений у всех ботов: {0}\n").format(income_messages) +
                          _("Исходящих сообщений у всех ботов: {0}\n").format(outgoing_messages) +
                          _("Промо-кодов выдано: {0}\n").format(promo_count) +
-                         _("Рекламную плашку выключили: {0}\n".format(olgram_text_disabled)))
+                         _("Рекламную плашку выключили: {0}\n").format(olgram_text_disabled))

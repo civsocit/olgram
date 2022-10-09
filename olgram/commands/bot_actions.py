@@ -1,11 +1,13 @@
 """
 Здесь работа с конкретным ботом
 """
+import asyncio
 from aiogram import types
 from aiogram.utils.exceptions import TelegramAPIError, Unauthorized
 from aiogram import Bot as AioBot
-from olgram.models.models import Bot
+from olgram.models.models import Bot, User
 from server.server import unregister_token
+from typing import Optional
 from locales.locale import _
 
 
@@ -85,6 +87,28 @@ async def select_chat(bot: Bot, call: types.CallbackQuery, chat: str):
     bot.group_chat = chat_obj
     await bot.save()
     await call.answer(_("Выбран чат {0}").format(chat_obj.name))
+
+
+async def start_broadcast(bot: Bot, call: types.CallbackQuery, text: Optional[str]):
+    if not text:
+        return await call.answer(_("Отправьте текст для рассылки"))
+
+    user_chat_ids = await User.all().values_list("telegram_id", flat=True)
+    a_bot = AioBot(bot.decrypted_token())
+    count = 0
+    await call.answer(_("Рассылка начата"))
+    try:
+        for telegram_id in user_chat_ids:
+            try:
+                if await a_bot.send_message(telegram_id, text, parse_mode="HTML"):
+                    count += 1
+            except Unauthorized:
+                continue
+            else:
+                await asyncio.sleep(0.05)  # 20 messages per second (Limit: 30 messages per second)
+    finally:
+        await call.bot.send_message(call.from_user.id, _("Рассылка закончена. Сообщений отправлено: {0}").format(count))
+        await a_bot.session.close()
 
 
 async def threads(bot: Bot, call: types.CallbackQuery):
