@@ -5,8 +5,9 @@ import asyncio
 from aiogram import types
 from aiogram.utils.exceptions import TelegramAPIError, Unauthorized
 from aiogram import Bot as AioBot
-from olgram.models.models import Bot, User
+from olgram.models.models import Bot
 from server.server import unregister_token
+from server.custom import _redis
 from typing import Optional
 from locales.locale import _
 
@@ -93,7 +94,8 @@ async def start_broadcast(bot: Bot, call: types.CallbackQuery, text: Optional[st
     if not text:
         return await call.answer(_("Отправьте текст для рассылки"))
 
-    user_chat_ids = await User.all().values_list("telegram_id", flat=True)
+    keys = [key async for key in _redis.iscan(match=f"{bot.id}_*")]
+    user_chat_ids = await _redis.mget(*keys)
     a_bot = AioBot(bot.decrypted_token())
     count = 0
     await call.answer(_("Рассылка начата"))
