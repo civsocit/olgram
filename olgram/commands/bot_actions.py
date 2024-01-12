@@ -4,7 +4,7 @@
 from aiogram import types
 from aiogram.utils.exceptions import TelegramAPIError, Unauthorized
 from aiogram import Bot as AioBot
-from olgram.models.models import Bot
+from olgram.models.models import Bot, BotStartMessage, BotSecondMessage
 from server.server import unregister_token
 from locales.locale import _
 
@@ -26,27 +26,39 @@ async def delete_bot(bot: Bot, call: types.CallbackQuery):
         pass
 
 
-async def reset_bot_text(bot: Bot, call: types.CallbackQuery):
+async def reset_bot_text(bot: Bot, call: types.CallbackQuery, state):
     """
     Пользователь решил сбросить текст бота к default
     :param bot:
     :param call:
     :return:
     """
-    bot.start_text = bot._meta.fields_map['start_text'].default
-    await bot.save()
+    async with state.proxy() as proxy:
+        lang = proxy.get("lang", "none")
+    if lang == "none":
+        await BotSecondMessage.filter(bot=bot).delete()
+        bot.start_text = bot._meta.fields_map['start_text'].default
+        await bot.save(update_fields=["start_text"])
+    else:
+        await BotStartMessage.filter(bot=bot, locale=lang).delete()
     await call.answer(_("Текст сброшен"))
 
 
-async def reset_bot_second_text(bot: Bot, call: types.CallbackQuery):
+async def reset_bot_second_text(bot: Bot, call: types.CallbackQuery, state):
     """
     Пользователь решил сбросить second text бота
     :param bot:
     :param call:
     :return:
     """
-    bot.second_text = bot._meta.fields_map['second_text'].default
-    await bot.save()
+    async with state.proxy() as proxy:
+        lang = proxy.get("lang", "none")
+    if lang == "none":
+        await BotSecondMessage.filter(bot=bot).delete()
+        bot.second_text = bot._meta.fields_map['second_text'].default
+        await bot.save(update_fields=["second_text"])
+    else:
+        await BotSecondMessage.filter(bot=bot, locale=lang).delete()
     await call.answer(_("Текст сброшен"))
 
 
