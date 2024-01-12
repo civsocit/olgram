@@ -36,7 +36,7 @@ async def reset_bot_text(bot: Bot, call: types.CallbackQuery, state):
     async with state.proxy() as proxy:
         lang = proxy.get("lang", "none")
     if lang == "none":
-        await BotSecondMessage.filter(bot=bot).delete()
+        await BotStartMessage.filter(bot=bot).delete()
         bot.start_text = bot._meta.fields_map['start_text'].default
         await bot.save(update_fields=["start_text"])
     else:
