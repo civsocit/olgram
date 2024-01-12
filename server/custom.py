@@ -11,7 +11,7 @@ from tortoise.expressions import F
 import logging
 import typing as ty
 from olgram.settings import ServerSettings
-from olgram.models.models import Bot, GroupChat, BannedUser
+from olgram.models.models import Bot, GroupChat, BannedUser, BotStartMessage, BotSecondMessage
 from locales.locale import _, translators
 from server.inlines import inline_handler
 
@@ -78,26 +78,29 @@ async def send_user_message(message: types.Message, super_chat_id: int, bot):
         if message.from_user.username:
             user_info += " | @" + message.from_user.username
         user_info += f" | #ID{message.from_user.id}"
+        if message.from_user.locale:
+            user_info += f" | lang: {message.from_user.locale}"
+        if message.forward_sender_name:
+            user_info += f" | fwd: {message.forward_sender_name}"
 
         # Добавлять информацию в конец текста
-        if message.content_type == types.ContentType.TEXT and len(message.text) + len(user_info) < 4093:  # noqa:E721
+        if message.content_type == types.ContentType.TEXT \
+                and len(message.text) + len(user_info) < 4093:  # noqa:E721
             new_message = await message.bot.send_message(super_chat_id, message.text + "\n\n" + user_info)
         else:  # Не добавлять информацию в конец текста, информация отдельным сообщением
             new_message = await message.bot.send_message(super_chat_id, text=user_info)
             new_message_2 = await message.copy_to(super_chat_id, reply_to_message_id=new_message.message_id)
             await _redis.set(_message_unique_id(bot.pk, new_message_2.message_id), message.chat.id,
                              pexpire=ServerSettings.redis_timeout_ms())
-        await _redis.set(_message_unique_id(bot.pk, new_message.message_id), message.chat.id,
-                         pexpire=ServerSettings.redis_timeout_ms())
-        return new_message
     else:
         try:
             new_message = await message.forward(super_chat_id)
         except exceptions.MessageCantBeForwarded:
             new_message = await message.copy_to(super_chat_id)
-        await _redis.set(_message_unique_id(bot.pk, new_message.message_id), message.chat.id,
-                         pexpire=ServerSettings.redis_timeout_ms())
-        return new_message
+
+    await _redis.set(_message_unique_id(bot.pk, new_message.message_id), message.chat.id,
+                     pexpire=ServerSettings.redis_timeout_ms())
+    return new_message
 
 
 async def send_to_superchat(is_super_group: bool, message: types.Message, super_chat_id: int, bot):
@@ -158,7 +161,9 @@ async def handle_user_message(message: types.Message, super_chat_id: int, bot):
         send_auto = not await _redis.get(_last_message_uid(bot.pk, message.chat.id))
         await _redis.setex(_last_message_uid(bot.pk, message.chat.id), 60 * 60 * 3, 1)
         if send_auto:
-            return SendMessage(chat_id=message.chat.id, text=bot.second_text, parse_mode="HTML")
+            text_obj = await BotSecondMessage.get_or_none(bot=bot, locale=str(message.from_user.locale))
+            return SendMessage(chat_id=message.chat.id, text=text_obj.text if text_obj else bot.second_text,
+                               parse_mode="HTML")
 
 
 async def handle_operator_message(message: types.Message, super_chat_id: int, bot):
@@ -218,7 +223,8 @@ async def message_handler(message: types.Message, *args, **kwargs):
 
     if message.text and message.text == "/start":
         # На команду start нужно ответить, не пересылая сообщение никуда
-        text = bot.start_text
+        text_obj = await BotStartMessage.get_or_none(bot=bot, locale=str(message.from_user.locale))
+        text = text_obj.text if text_obj else bot.start_text
         if bot.enable_olgram_text:
             text += _(ServerSettings.append_text())
         return SendMessage(chat_id=message.chat.id, text=text, parse_mode="HTML")

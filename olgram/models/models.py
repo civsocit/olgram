@@ -70,6 +70,28 @@ class Bot(Model):
         table = 'bot'
 
 
+class BotStartMessage(Model):
+    id = fields.IntField(pk=True)
+    bot = fields.ForeignKeyField("models.Bot", related_name="start_texts", on_delete=fields.CASCADE)
+    locale = fields.CharField(max_length=5)
+    text = fields.TextField()
+
+    class Meta:
+        unique_together = ("bot", "locale")
+        table = 'bot_start_message'
+
+
+class BotSecondMessage(Model):
+    id = fields.IntField(pk=True)
+    bot = fields.ForeignKeyField("models.Bot", related_name="second_texts", on_delete=fields.CASCADE)
+    locale = fields.CharField(max_length=5)
+    text = fields.TextField()
+
+    class Meta:
+        unique_together = ("bot", "locale")
+        table = 'bot_second_message'
+
+
 class User(Model):
     id = fields.IntField(pk=True)
     telegram_id = fields.BigIntField(index=True, unique=True)

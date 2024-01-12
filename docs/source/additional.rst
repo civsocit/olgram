@@ -4,21 +4,23 @@
 Донаты
 ----------------
 
-На рекламу проекта, аренду сервера и пиццу
+На аренду сервера для этого проекта
 
 Bitcoin:
     ``bc1qlq7cm5chc8flr3fy8ewk967aknq3dwmxtwn9hl``
 
-Monero:
-    ``886AQ8tCVcQKp21xsuSLkfDdTAdtCFH1jR58Tw9MsaxFXoZ7YRHXx1cQcUfUnDX6hySzPsQEVt6RWPn3sXH9QUmwCr3oVqB``
+Litecoin:
+    ``LTC1QXAJSVZ0LW44AA5NYTUCH8CP2G8X7A4CDASE4Y7``
 
-Dash:
-    ``XqxetfWzr5n4Ms1TxMbdEEeHGe8CaMdmb6``
+Как убрать "Этот бот создан с помощью ..."
+----------------
+Напишите нам на `@civsocit_feedback_bot <https://t.me/civsocit_feedback_bot>`_.
 
 
 История изменений
 ----------------
 
+- `2024-01-12` Мультиязычность (стартовое сообщение и автоответчик)
 - `2022-08-01` Защита от флуда
 - `2022-07-23` Автоответчик не пишет сообщение лишний раз
 - `2022-07-04` Поддержка двух ботов в одном чате

@@ -1,0 +1,9 @@
+-- upgrade --
+CREATE TABLE IF NOT EXISTS "bot_start_message" (
+    "id" SERIAL NOT NULL PRIMARY KEY,
+    "locale" VARCHAR(5) NOT NULL,
+    "bot_id" INT NOT NULL REFERENCES "bot" ("id") ON DELETE CASCADE,
+    CONSTRAINT "uid_bot_start_m_bot_id_871cd1" UNIQUE ("bot_id", "locale")
+);
+-- downgrade --
+DROP TABLE IF EXISTS "bot_start_message";

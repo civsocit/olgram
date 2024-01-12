@@ -1,7 +1,7 @@
 from olgram.router import dp
 
 from aiogram import types, Bot as AioBot
-from olgram.models.models import Bot, User, DefaultAnswer
+from olgram.models.models import Bot, User, DefaultAnswer, BotStartMessage, BotSecondMessage
 from aiogram.dispatcher import FSMContext
 from aiogram.utils.callback_data import CallbackData
 from textwrap import dedent
@@ -202,9 +202,26 @@ async def send_bot_settings_menu(bot: Bot, call: types.CallbackQuery):
     await edit_or_create(call, text, reply_markup=keyboard, parse_mode="HTML")
 
 
-async def send_bot_text_menu(bot: Bot, call: ty.Optional[types.CallbackQuery] = None, chat_id: ty.Optional[int] = None):
+languages = {
+    "en": "English 🇺🇸",
+    "ru": "Русский 🇷🇺",
+    "uk": "Український 🇺🇦",
+    "tr": "Türkçe 🇹🇷",
+    "hy": "հայերեն 🇦🇲",
+    "ka": "ქართული ენა 🇬🇪"
+}
+
+
+async def send_bot_text_menu(bot: Bot, call: ty.Optional[types.CallbackQuery] = None, chat_id: ty.Optional[int] = None,
+                             state=None):
     if call:
         await call.answer()
+
+    async with state.proxy() as proxy:
+        lang = proxy.get("lang", "none")
+
+    prepared_languages = {ln.locale: ln.text for ln in await bot.start_texts}
+
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     keyboard.insert(
         types.InlineKeyboardButton(text=_("<< Завершить редактирование"),
@@ -215,23 +232,40 @@ async def send_bot_text_menu(bot: Bot, call: ty.Optional[types.CallbackQuery] = 
                                    callback_data=menu_callback.new(level=3, bot_id=bot.id, operation="next_text",
                                                                    chat=empty))
     )
-    keyboard.insert(
+    keyboard.row(
         types.InlineKeyboardButton(text=_("Сбросить текст"),
                                    callback_data=menu_callback.new(level=3, bot_id=bot.id, operation="reset_text",
                                                                    chat=empty))
     )
+    keyboard.add(
+        types.InlineKeyboardButton(text=("🟢 " if lang == "none" else "") + _("[все языки]"),
+                                   callback_data=menu_callback.new(level=3, bot_id=bot.id,
+                                                                   operation="slang_none", chat=empty))
+    )
+    for code, name in languages.items():
+        prefix = ""
+        if code == lang:
+            prefix = "🟢 "
+        elif code in prepared_languages:
+            prefix = "✔️ "
+        keyboard.insert(
+            types.InlineKeyboardButton(text=prefix + name,
+                                       callback_data=menu_callback.new(level=3, bot_id=bot.id,
+                                                                       operation=f"slang_{code}",
+                                                                       chat=empty))
+        )
 
     text = dedent(_("""
     Сейчас вы редактируете текст, который отправляется после того, как пользователь отправит вашему боту @{0}
     команду /start
 
-    Текущий текст:
-    <pre>
-    {1}
-    </pre>
+    Текущий текст{2}:
+    <pre>{1}</pre>
     Отправьте сообщение, чтобы изменить текст.
     """))
-    text = text.format(bot.name, bot.start_text)
+    text = text.format(bot.name,
+                       prepared_languages.get(lang, bot.start_text),
+                       _(" (для языка {0})").format(languages[lang]) if lang != "none" else "")
     if call:
         await edit_or_create(call, text, keyboard, parse_mode="HTML")
     else:
@@ -264,9 +298,15 @@ async def send_bot_statistic_menu(bot: Bot, call: ty.Optional[types.CallbackQuer
 
 
 async def send_bot_second_text_menu(bot: Bot, call: ty.Optional[types.CallbackQuery] = None,
-                                    chat_id: ty.Optional[int] = None):
+                                    chat_id: ty.Optional[int] = None, state=None):
     if call:
         await call.answer()
+
+    async with state.proxy() as proxy:
+        lang = proxy.get("lang", "none")
+
+    prepared_languages = {ln.locale: ln.text for ln in await bot.second_texts}
+
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     keyboard.insert(
         types.InlineKeyboardButton(text=_("<< Завершить редактирование"),
@@ -287,18 +327,35 @@ async def send_bot_second_text_menu(bot: Bot, call: ty.Optional[types.CallbackQu
                                    callback_data=menu_callback.new(level=3, bot_id=bot.id,
                                                                    operation="reset_second_text", chat=empty))
     )
+    keyboard.add(
+        types.InlineKeyboardButton(text=("🟢 " if lang == "none" else "") + _("[все языки]"),
+                                   callback_data=menu_callback.new(level=3, bot_id=bot.id,
+                                                                   operation="alang_none", chat=empty))
+    )
+    for code, name in languages.items():
+        prefix = ""
+        if code == lang:
+            prefix = "🟢 "
+        elif code in prepared_languages:
+            prefix = "✔️ "
+        keyboard.insert(
+            types.InlineKeyboardButton(text=prefix + name,
+                                       callback_data=menu_callback.new(level=3, bot_id=bot.id,
+                                                                       operation=f"alang_{code}",
+                                                                       chat=empty))
+        )
 
     text = dedent(_("""
     Сейчас вы редактируете текст автоответчика. Это сообщение отправляется в ответ на все входящие сообщения @{0} \
 автоматически. По умолчанию оно отключено.
 
-    Текущий текст:
-    <pre>
-    {1}
-    </pre>
+    Текущий текст{2}:
+    <pre>{1}</pre>
     Отправьте сообщение, чтобы изменить текст.
     """))
-    text = text.format(bot.name, bot.second_text if bot.second_text else _("(отключено)"))
+    text = text.format(bot.name,
+                       prepared_languages.get(lang, bot.second_text or _("отключено")),
+                       _(" (для языка {0})").format(languages[lang]) if lang != "none" else "")
     if call:
         await edit_or_create(call, text, keyboard, parse_mode="HTML")
     else:
@@ -346,20 +403,43 @@ async def send_bot_templates_menu(bot: Bot, call: ty.Optional[types.CallbackQuer
 async def start_text_received(message: types.Message, state: FSMContext):
     async with state.proxy() as proxy:
         bot_id = proxy.get("bot_id")
+        lang = proxy.get("lang", "none")
+
     bot = await Bot.get_or_none(pk=bot_id)
-    bot.start_text = message.html_text
-    await bot.save()
-    await send_bot_text_menu(bot, chat_id=message.chat.id)
+    if lang == "none":
+        bot.start_text = message.html_text
+        await bot.save(update_fields=["start_text"])
+    else:
+        obj, created = await BotStartMessage.get_or_create(bot=bot,
+                                                           locale=lang,
+                                                           defaults={"text": message.html_text})
+        if not created:
+            obj.text = message.html_text
+            await obj.save(update_fields=["text"])
+    await send_bot_text_menu(bot, chat_id=message.chat.id, state=state)
 
 
 @dp.message_handler(state="wait_second_text", content_types="text", regexp="^[^/].+")  # Not command
 async def second_text_received(message: types.Message, state: FSMContext):
     async with state.proxy() as proxy:
         bot_id = proxy.get("bot_id")
+        lang = proxy.get("lang", "none")
+
     bot = await Bot.get_or_none(pk=bot_id)
-    bot.second_text = message.html_text
-    await bot.save()
-    await send_bot_second_text_menu(bot, chat_id=message.chat.id)
+    if lang == "none":
+        bot.second_text = message.html_text
+        await bot.save(update_fields=["second_text"])
+    else:
+        obj, created = await BotSecondMessage.get_or_create(bot=bot,
+                                                            locale=lang,
+                                                            defaults={"text": message.html_text})
+        if not created:
+            obj.text = message.html_text
+            await obj.save(update_fields=["text"])
+        if not bot.second_text:
+            bot.second_text = message.html_text
+            await bot.save(update_fields=["second_text"])
+    await send_bot_second_text_menu(bot, chat_id=message.chat.id, state=state)
 
 
 @dp.message_handler(state="wait_template", content_types="text", regexp="^[^/](.+)?")  # Not command
@@ -427,7 +507,7 @@ async def callback(call: types.CallbackQuery, callback_data: dict, state: FSMCon
             await state.set_state("wait_start_text")
             async with state.proxy() as proxy:
                 proxy["bot_id"] = bot.id
-            return await send_bot_text_menu(bot, call)
+            return await send_bot_text_menu(bot, call, state=state)
 
     if level == "3":
         if operation == "delete_yes":
@@ -447,16 +527,28 @@ async def callback(call: types.CallbackQuery, callback_data: dict, state: FSMCon
             await bot_actions.olgram_text(bot, call)
             return await send_bot_settings_menu(bot, call)
         if operation == "reset_text":
-            await bot_actions.reset_bot_text(bot, call)
-            return await send_bot_text_menu(bot, call)
+            await bot_actions.reset_bot_text(bot, call, state)
+            return await send_bot_text_menu(bot, call, state=state)
+        if operation.startswith("slang_"):
+            async with state.proxy() as proxy:
+                lang = operation.replace("slang_", "")
+                if lang == "none" or lang in languages:
+                    proxy["lang"] = lang
+            return await send_bot_text_menu(bot, call, state=state)
         if operation == "next_text":
             await state.set_state("wait_second_text")
             async with state.proxy() as proxy:
                 proxy["bot_id"] = bot.id
-            return await send_bot_second_text_menu(bot, call)
+            return await send_bot_second_text_menu(bot, call, state=state)
+        if operation.startswith("alang_"):
+            async with state.proxy() as proxy:
+                lang = operation.replace("alang_", "")
+                if lang == "none" or lang in languages:
+                    proxy["lang"] = lang
+            return await send_bot_second_text_menu(bot, call, state=state)
         if operation == "reset_second_text":
-            await bot_actions.reset_bot_second_text(bot, call)
-            return await send_bot_second_text_menu(bot, call)
+            await bot_actions.reset_bot_second_text(bot, call, state)
+            return await send_bot_second_text_menu(bot, call, state=state)
         if operation == "templates":
             await state.set_state("wait_template")
             async with state.proxy() as proxy:
