@@ -160,7 +160,7 @@ async def handle_user_message(message: types.Message, super_chat_id: int, bot):
     if bot.second_text:
         send_auto = not await _redis.get(_last_message_uid(bot.pk, message.chat.id))
         await _redis.setex(_last_message_uid(bot.pk, message.chat.id), 60 * 60 * 3, 1)
-        if send_auto:
+        if send_auto or bot.enable_always_second_message:
             text_obj = await BotSecondMessage.get_or_none(bot=bot, locale=str(message.from_user.locale))
             return SendMessage(chat_id=message.chat.id, text=text_obj.text if text_obj else bot.second_text,
                                parse_mode="HTML")

@@ -109,6 +109,11 @@ async def additional_info(bot: Bot, call: types.CallbackQuery):
     await bot.save(update_fields=["enable_additional_info"])
 
 
+async def always_second_message(bot: Bot, call: types.CallbackQuery):
+    bot.enable_always_second_message = not bot.enable_always_second_message
+    await bot.save(update_fields=["enable_always_second_message"])
+
+
 async def olgram_text(bot: Bot, call: types.CallbackQuery):
     if await bot.is_promo():
         bot.enable_olgram_text = not bot.enable_olgram_text

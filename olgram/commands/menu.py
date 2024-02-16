@@ -172,6 +172,12 @@ async def send_bot_settings_menu(bot: Bot, call: types.CallbackQuery):
                                    callback_data=menu_callback.new(level=3, bot_id=bot.id, operation="antiflood",
                                                                    chat=empty))
     )
+    keyboard.insert(
+        types.InlineKeyboardButton(text=_("Автоответчик всегда"),
+                                   callback_data=menu_callback.new(level=3, bot_id=bot.id,
+                                                                   operation="always_second_message",
+                                                                   chat=empty))
+    )
     is_promo = await bot.is_promo()
     if is_promo:
         keyboard.insert(
@@ -189,11 +195,13 @@ async def send_bot_settings_menu(bot: Bot, call: types.CallbackQuery):
     thread_turn = _("включены") if bot.enable_threads else _("выключены")
     info_turn = _("включены") if bot.enable_additional_info else _("выключены")
     antiflood_turn = _("включен") if bot.enable_antiflood else _("выключен")
+    enable_always_second_message = _("включён") if bot.enable_always_second_message else _("выключен")
     text = dedent(_("""
     <a href="https://olgram.readthedocs.io/ru/latest/options.html#threads">Потоки сообщений</a>: <b>{0}</b>
     <a href="https://olgram.readthedocs.io/ru/latest/options.html#user-info">Данные пользователя</a>: <b>{1}</b>
     <a href="https://olgram.readthedocs.io/ru/latest/options.html#antiflood">Антифлуд</a>: <b>{2}</b>
-    """)).format(thread_turn, info_turn, antiflood_turn)
+    <a href="https://olgram.readthedocs.io/ru/latest/options.html#always_second_message">Автоответчик всегда</a>: <b>{3}</b>
+    """)).format(thread_turn, info_turn, antiflood_turn, enable_always_second_message)
 
     if is_promo:
         olgram_turn = _("включена") if bot.enable_olgram_text else _("выключена")
@@ -522,6 +530,9 @@ async def callback(call: types.CallbackQuery, callback_data: dict, state: FSMCon
             return await send_bot_settings_menu(bot, call)
         if operation == "additional_info":
             await bot_actions.additional_info(bot, call)
+            return await send_bot_settings_menu(bot, call)
+        if operation == "always_second_message":
+            await bot_actions.always_second_message(bot, call)
             return await send_bot_settings_menu(bot, call)
         if operation == "olgram_text":
             await bot_actions.olgram_text(bot, call)
