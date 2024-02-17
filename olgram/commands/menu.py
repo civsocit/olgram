@@ -200,7 +200,8 @@ async def send_bot_settings_menu(bot: Bot, call: types.CallbackQuery):
     <a href="https://olgram.readthedocs.io/ru/latest/options.html#threads">Потоки сообщений</a>: <b>{0}</b>
     <a href="https://olgram.readthedocs.io/ru/latest/options.html#user-info">Данные пользователя</a>: <b>{1}</b>
     <a href="https://olgram.readthedocs.io/ru/latest/options.html#antiflood">Антифлуд</a>: <b>{2}</b>
-    <a href="https://olgram.readthedocs.io/ru/latest/options.html#always_second_message">Автоответчик всегда</a>: <b>{3}</b>
+    <a href="https://olgram.readthedocs.io/ru/latest/options.html#always_second_message">Автоответчик всегда</a>: <b>{3}
+    </b>
     """)).format(thread_turn, info_turn, antiflood_turn, enable_always_second_message)
 
     if is_promo:
