@@ -114,6 +114,11 @@ async def always_second_message(bot: Bot, call: types.CallbackQuery):
     await bot.save(update_fields=["enable_always_second_message"])
 
 
+async def thread_interrupt(bot: Bot, call: types.CallbackQuery):
+    bot.enable_thread_interrupt = not bot.enable_thread_interrupt
+    await bot.save(update_fields=["enable_thread_interrupt"])
+
+
 async def olgram_text(bot: Bot, call: types.CallbackQuery):
     if await bot.is_promo():
         bot.enable_olgram_text = not bot.enable_olgram_text

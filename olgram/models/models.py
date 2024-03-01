@@ -47,6 +47,7 @@ class Bot(Model):
     enable_olgram_text = fields.BooleanField(default=True)
     enable_antiflood = fields.BooleanField(default=False)
     enable_always_second_message = fields.BooleanField(default=False)
+    enable_thread_interrupt = fields.BooleanField(default=True)
 
     def decrypted_token(self):
         cryptor = DatabaseSettings.cryptor()

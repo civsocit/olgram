@@ -106,22 +106,26 @@ async def send_user_message(message: types.Message, super_chat_id: int, bot):
 async def send_to_superchat(is_super_group: bool, message: types.Message, super_chat_id: int, bot):
     """Пересылка сообщения от пользователя оператору (логика потоков сообщений)"""
     if is_super_group and bot.enable_threads:
+        if bot.enable_thread_interrupt:
+            thread_timeout = ServerSettings.thread_timeout_ms()
+        else:
+            thread_timeout = ServerSettings.redis_timeout_ms()
         thread_first_message = await _redis.get(_thread_uniqie_id(bot.pk, message.chat.id))
         if thread_first_message:
             # переслать в супер-чат, отвечая на предыдущее сообщение
             try:
                 new_message = await message.copy_to(super_chat_id, reply_to_message_id=int(thread_first_message))
                 await _redis.set(_message_unique_id(bot.pk, new_message.message_id), message.chat.id,
-                                 pexpire=ServerSettings.redis_timeout_ms())
+                                 pexpire=thread_timeout)
             except exceptions.BadRequest:
                 new_message = await send_user_message(message, super_chat_id, bot)
-                await _redis.set(_thread_uniqie_id(bot.pk, message.chat.id), new_message.message_id,
-                                 pexpire=ServerSettings.thread_timeout_ms())
+                await _redis.set(
+                    _thread_uniqie_id(bot.pk, message.chat.id), new_message.message_id, pexpire=thread_timeout)
         else:
             # переслать супер-чат
             new_message = await send_user_message(message, super_chat_id, bot)
             await _redis.set(_thread_uniqie_id(bot.pk, message.chat.id), new_message.message_id,
-                             pexpire=ServerSettings.thread_timeout_ms())
+                             pexpire=thread_timeout)
     else:  # личные сообщения не поддерживают потоки сообщений: просто отправляем сообщение
         await send_user_message(message, super_chat_id, bot)
 
