@@ -179,6 +179,11 @@ async def send_bot_settings_menu(bot: Bot, call: types.CallbackQuery):
                                                                    chat=empty))
     )
     keyboard.insert(
+        types.InlineKeyboardButton(text=_("Рассылка"),
+                                   callback_data=menu_callback.new(level=3, bot_id=bot.id, operation="mailing",
+                                                                   chat=empty))
+    )
+    keyboard.insert(
         types.InlineKeyboardButton(text=_("Прерывать поток"),
                                    callback_data=menu_callback.new(level=3, bot_id=bot.id,
                                                                    operation="thread_interrupt",
@@ -203,14 +208,16 @@ async def send_bot_settings_menu(bot: Bot, call: types.CallbackQuery):
     antiflood_turn = _("включен") if bot.enable_antiflood else _("выключен")
     enable_always_second_message = _("включён") if bot.enable_always_second_message else _("выключен")
     thread_interrupt = _("да") if bot.enable_thread_interrupt else _("нет")
+    mailing_turn = _("включена") if bot.enable_mailing else _("выключена")
     text = dedent(_("""
     <a href="https://olgram.readthedocs.io/ru/latest/options.html#threads">Потоки сообщений</a>: <b>{0}</b>
     <a href="https://olgram.readthedocs.io/ru/latest/options.html#user-info">Данные пользователя</a>: <b>{1}</b>
     <a href="https://olgram.readthedocs.io/ru/latest/options.html#antiflood">Антифлуд</a>: <b>{2}</b>
-    <a href="https://olgram.readthedocs.io/ru/latest/options.html#always_second_message">Автоответчик всегда</a>: <b>{3}
-    <a href="https://olgram.readthedocs.io/ru/latest/options.html#thread_interrupt">Прерывать поток</a>: <b>{4}
-    </b>
-    """)).format(thread_turn, info_turn, antiflood_turn, enable_always_second_message, thread_interrupt)
+    <a href="https://olgram.readthedocs.io/ru/latest/options.html#always_second_message">Автоответчик всегда</a>: <b>{3}</b>
+    <a href="https://olgram.readthedocs.io/ru/latest/options.html#thread_interrupt">Прерывать поток</a>: <b>{4}</b>
+    <a href="https://olgram.readthedocs.io/ru/latest/options.html#mailing">Рассылка</a>: <b>{5}</b>
+    """)).format(thread_turn, info_turn, antiflood_turn, enable_always_second_message, thread_interrupt,
+                 mailing_turn)
 
     if is_promo:
         olgram_turn = _("включена") if bot.enable_olgram_text else _("выключена")
@@ -542,6 +549,9 @@ async def callback(call: types.CallbackQuery, callback_data: dict, state: FSMCon
             return await send_bot_settings_menu(bot, call)
         if operation == "always_second_message":
             await bot_actions.always_second_message(bot, call)
+            return await send_bot_settings_menu(bot, call)
+        if operation == "mailing":
+            await bot_actions.mailing(bot, call)
             return await send_bot_settings_menu(bot, call)
         if operation == "thread_interrupt":
             await bot_actions.thread_interrupt(bot, call)

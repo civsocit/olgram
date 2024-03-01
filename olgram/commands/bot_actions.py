@@ -128,3 +128,8 @@ async def olgram_text(bot: Bot, call: types.CallbackQuery):
 async def antiflood(bot: Bot, call: types.CallbackQuery):
     bot.enable_antiflood = not bot.enable_antiflood
     await bot.save(update_fields=["enable_antiflood"])
+
+
+async def mailing(bot: Bot, call: types.CallbackQuery):
+    bot.enable_mailing = not bot.enable_mailing
+    await bot.save(update_fields=["enable_mailing"])

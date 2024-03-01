@@ -1,5 +1,6 @@
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup
 from aiogram.utils.exceptions import TelegramAPIError
+from aiogram import types, Bot as AioBot
 
 from typing import Optional
 
@@ -30,3 +31,23 @@ def wrap(data: str, max_len: int) -> str:
 
 def button_text_limit(data: str) -> str:
     return wrap(data, 30)
+
+
+async def send_stored_message(storage: dict, bot: AioBot, chat_id: int):
+    content_type = storage["mailing_content_type"]
+    if content_type == types.ContentType.TEXT:
+        return await bot.send_message(chat_id, storage["mailing_text"], parse_mode="HTML")
+    if content_type == types.ContentType.LOCATION:
+        return await bot.send_location(chat_id, storage["mailing_location"][0], storage["mailing_location"][1])
+    if content_type == types.ContentType.AUDIO:
+        return await bot.send_audio(chat_id, audio=storage["mailing_audio"], caption=storage.get("mailing_caption"))
+    if content_type == types.ContentType.DOCUMENT:
+        return await bot.send_document(chat_id, document=storage["mailing_document"],
+                                       caption=storage.get("mailing_caption"))
+    if content_type == types.ContentType.PHOTO:
+        return await bot.send_photo(chat_id, photo=storage["mailing_photo"],
+                                    caption=storage.get("mailing_caption"))
+    if content_type == types.ContentType.VIDEO:
+        return await bot.send_video(chat_id, video=storage["mailing_video"],
+                                    caption=storage.get("mailing_caption"))
+    raise NotImplementedError("Mailing, unknown content type")
