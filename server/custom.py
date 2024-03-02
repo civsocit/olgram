@@ -229,6 +229,8 @@ async def handle_operator_message(message: types.Message, super_chat_id: int, bo
 
     elif super_chat_id > 0:
         # в супер-чате кто-то пишет сообщение сам себе, только для личных сообщений
+        if bot.enable_mailing:
+            asyncio.create_task(MailingUser.get_or_create(telegram_id=message.chat.id, bot=bot))
         await message.forward(super_chat_id)
         # И отправить пользователю специальный текст, если он указан
         if bot.second_text:

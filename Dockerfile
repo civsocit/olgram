@@ -1,7 +1,7 @@
 FROM python:3.8-buster
 
 ENV PYTHONUNBUFFERED=1 \
-    POETRY_VERSION=1.1.12 \
+    POETRY_VERSION=1.5.1 \
     POETRY_VIRTUALENVS_CREATE="false"
 
 RUN apt-get update && \

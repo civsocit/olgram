@@ -1,11 +1,13 @@
+import logging
+from io import BytesIO
 from olgram.router import dp
-
+from datetime import datetime, timedelta, timezone
 from aiogram import types, Bot as AioBot
 from olgram.models.models import Bot, User, DefaultAnswer, BotStartMessage, BotSecondMessage
 from aiogram.dispatcher import FSMContext
 from aiogram.utils.callback_data import CallbackData
 from textwrap import dedent
-from olgram.utils.mix import edit_or_create, button_text_limit, wrap
+from olgram.utils.mix import edit_or_create, button_text_limit, wrap, send_stored_message
 from olgram.commands import bot_actions
 from locales.locale import _
 
@@ -127,6 +129,12 @@ async def send_bot_menu(bot: Bot, call: types.CallbackQuery):
                                    callback_data=menu_callback.new(level=2, bot_id=bot.id, operation="settings",
                                                                    chat=empty))
     )
+    if bot.enable_mailing:
+        keyboard.insert(
+            types.InlineKeyboardButton(text=_("Рассылка"),
+                                       callback_data=menu_callback.new(level=2, bot_id=bot.id, operation="go_mailing",
+                                                                       chat=empty))
+        )
 
     await edit_or_create(call, dedent(_("""
     Управление ботом @{0}.
@@ -294,6 +302,83 @@ async def send_bot_text_menu(bot: Bot, call: ty.Optional[types.CallbackQuery] = 
         await edit_or_create(call, text, keyboard, parse_mode="HTML")
     else:
         await AioBot.get_current().send_message(chat_id, text, reply_markup=keyboard, parse_mode="HTML")
+
+
+async def send_bot_mailing_menu(bot: Bot, call: ty.Optional[types.CallbackQuery] = None,
+                                chat_id: ty.Optional[int] = None):
+    if call:
+        await call.answer()
+    keyboard = types.InlineKeyboardMarkup(row_width=1)
+    keyboard.insert(
+        types.InlineKeyboardButton(text=_("<< Отменить рассылку"),
+                                   callback_data=menu_callback.new(level=1, bot_id=bot.id, operation=empty, chat=empty))
+    )
+
+    text = dedent(_("""
+    Напишите сообщение, которое нужно разослать всем подписчикам вашего бота @{0}. 
+    У сообщения будет до {1} получателей. 
+    Учтите, что
+    1. Рассылается только одно сообщение за раз (в т.ч. только одна картинка)
+    2. Когда рассылка запущена, её нельзя отменить 
+    """))
+    text = text.format(bot.name, len(await bot.mailing_users))
+    if call:
+        await edit_or_create(call, text, keyboard, parse_mode="HTML")
+    else:
+        await AioBot.get_current().send_message(chat_id, text, reply_markup=keyboard, parse_mode="HTML")
+
+
+@dp.message_handler(state="wait_mailing_text",
+                    content_types=[types.ContentType.TEXT,
+                                   types.ContentType.LOCATION,
+                                   types.ContentType.DOCUMENT,
+                                   types.ContentType.PHOTO,
+                                   types.ContentType.AUDIO,
+                                   types.ContentType.VIDEO])  # TODO: not command
+async def mailing_text_received(message: types.Message, state: FSMContext):
+    async with state.proxy() as proxy:
+        bot_id = proxy["bot_id"]
+        proxy["mailing_content_type"] = message.content_type
+
+        buffer = BytesIO()
+
+        if message.content_type == types.ContentType.TEXT:
+            proxy["mailing_text"] = message.html_text
+        elif message.content_type == types.ContentType.LOCATION:
+            proxy["mailing_location"] = message.location
+        elif message.content_type in (types.ContentType.PHOTO, types.ContentType.DOCUMENT, types.ContentType.AUDIO,
+                types.ContentType.VIDEO):
+            proxy["mailing_caption"] = message.caption
+
+            if message.content_type == types.ContentType.PHOTO:
+                obj = message.photo[-1]
+            elif message.content_type == types.ContentType.DOCUMENT:
+                obj = message.document
+            elif message.content_type == types.ContentType.AUDIO:
+                obj = message.audio
+            elif message.content_type == types.ContentType.VIDEO:
+                obj = message.video
+
+            try:
+                await obj.download(buffer, timeout=5)
+            except Exception as err:
+                logging.error("Error downloading file")
+                logging.error(err, exc_info=True)
+                return await message.answer(_("Не удалось загрузить файл (слишком большой размер?)"))
+            proxy["mailing_data"] = buffer.getvalue()
+            proxy["mailing_file_name"] = getattr(obj, "file_name")
+        _message_id = await send_stored_message(proxy, AioBot.get_current(), message.chat.id)
+
+    keyboard = types.InlineKeyboardMarkup(row_width=1)
+    keyboard.insert(
+        types.InlineKeyboardButton(text=_("Да, начать рассылку"),
+                                   callback_data=menu_callback.new(level=3, bot_id=bot_id, operation="go_go_mailing",
+                                                                   chat=empty))
+    )
+
+    await AioBot.get_current().send_message(message.chat.id, reply_to_message_id=_message_id,
+                                            text="Вы уверены, что хотите разослать это сообщение всем пользователям?",
+                                            reply_markup=keyboard)
 
 
 async def send_bot_statistic_menu(bot: Bot, call: ty.Optional[types.CallbackQuery] = None,
@@ -527,6 +612,15 @@ async def callback(call: types.CallbackQuery, callback_data: dict, state: FSMCon
             return await send_bot_statistic_menu(bot, call)
         if operation == "settings":
             return await send_bot_settings_menu(bot, call)
+        if operation == "go_mailing":
+            if bot.last_mailing_at and bot.last_mailing_at >= datetime.now(tz=timezone.utc) - timedelta(minutes=5):
+                return await call.answer(_("Рассылка была совсем недавно, подождите немного"), show_alert=True)
+            if not await bot.mailing_users:
+                return await call.answer(_("Нет пользователей для рассылки"))
+            await state.set_state("wait_mailing_text")
+            async with state.proxy() as proxy:
+                proxy["bot_id"] = bot.id
+            return await send_bot_mailing_menu(bot, call)
         if operation == "text":
             await state.set_state("wait_start_text")
             async with state.proxy() as proxy:
@@ -536,6 +630,25 @@ async def callback(call: types.CallbackQuery, callback_data: dict, state: FSMCon
     if level == "3":
         if operation == "delete_yes":
             return await bot_actions.delete_bot(bot, call)
+        if operation == "mailing":
+            await bot_actions.mailing(bot, call)
+            return await send_bot_settings_menu(bot, call)
+        if operation == "go_go_mailing":
+            if (await state.get_state()) == "wait_mailing_text":
+                async with state.proxy() as proxy:
+                    mailing_data = dict(proxy)
+                await state.reset_state()
+
+                if bot.last_mailing_at and bot.last_mailing_at >= datetime.now(tz=timezone.utc) - timedelta(minutes=5):
+                    return await call.answer(_("Рассылка была совсем недавно, подождите немного"), show_alert=True)
+                if not await bot.mailing_users:
+                    return await call.answer(_("Нет пользователей для рассылки"))
+
+                await call.answer(_("Рассылка запущена"))
+                count = await bot_actions.go_mailing(bot, mailing_data)
+                return await call.message.answer(_("Рассылка завершена, отправлено {0} сообщений").format(count))
+            else:
+                return await call.answer(_("Устарело, создайте новую рассылку"))
         if operation == "chat":
             return await bot_actions.select_chat(bot, call, callback_data.get("chat"))
         if operation == "threads":
