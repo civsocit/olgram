@@ -7,7 +7,6 @@ from datetime import timedelta
 import typing as ty
 from olgram.utils.crypto import Cryptor
 
-
 load_dotenv()
 
 
@@ -41,7 +40,7 @@ class OlgramSettings(AbstractSettings):
 
     @classmethod
     def version(cls):
-        return "0.7.0"
+        return "0.7.1"
 
     @classmethod
     @lru_cache
@@ -161,4 +160,6 @@ TORTOISE_ORM = {
             "default_connection": "default",
         },
     },
+    "use_tz": False,
+    "timezone": "UTC"
 }

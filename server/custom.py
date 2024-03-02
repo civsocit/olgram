@@ -1,3 +1,5 @@
+import asyncio
+
 from aiogram import Bot as AioBot, Dispatcher
 from aiogram.dispatcher.webhook import WebhookRequestHandler
 from aiogram.dispatcher.webhook import SendMessage
@@ -11,7 +13,7 @@ from tortoise.expressions import F
 import logging
 import typing as ty
 from olgram.settings import ServerSettings
-from olgram.models.models import Bot, GroupChat, BannedUser, BotStartMessage, BotSecondMessage
+from olgram.models.models import Bot, GroupChat, BannedUser, BotStartMessage, BotSecondMessage, MailingUser
 from locales.locale import _, translators
 from server.inlines import inline_handler
 
@@ -55,15 +57,20 @@ def _on_security_policy(message: types.Message, bot):
     text = _("<b>Политика конфиденциальности</b>\n\n"
              "Этот бот не хранит ваши сообщения, имя пользователя и @username. При отправке сообщения (кроме команд "
              "/start и /security_policy) ваш идентификатор пользователя записывается в кеш на некоторое время и потом "
-             "удаляется из кеша. Этот идентификатор используется только для общения с оператором; боты Olgram "
-             "не делают массовых рассылок.\n\n")
+             "удаляется из кеша. Этот идентификатор используется для общения с оператором.\n\n")
     if bot.enable_additional_info:
         text += _("При отправке сообщения (кроме команд /start и /security_policy) оператор <b>видит</b> ваши имя "
                   "пользователя, @username и идентификатор пользователя в силу настроек, которые оператор указал при "
-                  "создании бота.")
+                  "создании бота.\n\n")
     else:
         text += _("В зависимости от ваших настроек конфиденциальности Telegram, оператор может видеть ваш username, "
-                  "имя пользователя и другую информацию.")
+                  "имя пользователя и другую информацию.\n\n")
+
+    if bot.enable_mailing:
+        text += _("В этом боте включена массовая рассылка в силу настроек, которые оператор указал при создании бота. "
+                  "Ваш идентификатор пользователя может быть записан в базу данных на долгое время")
+    else:
+        text += _("В этом боте нет массовой рассылки сообщений")
 
     return SendMessage(chat_id=message.chat.id,
                        text=text,
@@ -106,30 +113,42 @@ async def send_user_message(message: types.Message, super_chat_id: int, bot):
 async def send_to_superchat(is_super_group: bool, message: types.Message, super_chat_id: int, bot):
     """Пересылка сообщения от пользователя оператору (логика потоков сообщений)"""
     if is_super_group and bot.enable_threads:
+        if bot.enable_thread_interrupt:
+            thread_timeout = ServerSettings.thread_timeout_ms()
+        else:
+            thread_timeout = ServerSettings.redis_timeout_ms()
         thread_first_message = await _redis.get(_thread_uniqie_id(bot.pk, message.chat.id))
         if thread_first_message:
             # переслать в супер-чат, отвечая на предыдущее сообщение
             try:
                 new_message = await message.copy_to(super_chat_id, reply_to_message_id=int(thread_first_message))
                 await _redis.set(_message_unique_id(bot.pk, new_message.message_id), message.chat.id,
-                                 pexpire=ServerSettings.redis_timeout_ms())
+                                 pexpire=thread_timeout)
             except exceptions.BadRequest:
                 new_message = await send_user_message(message, super_chat_id, bot)
-                await _redis.set(_thread_uniqie_id(bot.pk, message.chat.id), new_message.message_id,
-                                 pexpire=ServerSettings.thread_timeout_ms())
+                await _redis.set(
+                    _thread_uniqie_id(bot.pk, message.chat.id), new_message.message_id, pexpire=thread_timeout)
         else:
             # переслать супер-чат
             new_message = await send_user_message(message, super_chat_id, bot)
             await _redis.set(_thread_uniqie_id(bot.pk, message.chat.id), new_message.message_id,
-                             pexpire=ServerSettings.thread_timeout_ms())
+                             pexpire=thread_timeout)
     else:  # личные сообщения не поддерживают потоки сообщений: просто отправляем сообщение
         await send_user_message(message, super_chat_id, bot)
+
+
+async def _increase_count(_bot):
+    _bot.incoming_messages_count = F("incoming_messages_count") + 1
+    await _bot.save(update_fields=["incoming_messages_count"])
 
 
 async def handle_user_message(message: types.Message, super_chat_id: int, bot):
     """Обычный пользователь прислал сообщение в бот, нужно переслать его операторам"""
     _ = _get_translator(message)
     is_super_group = super_chat_id < 0
+
+    if bot.enable_mailing:
+        asyncio.create_task(MailingUser.get_or_create(telegram_id=message.chat.id, bot=bot))
 
     # Проверить, не забанен ли пользователь
     banned = await bot.banned_users.filter(telegram_id=message.chat.id)
@@ -153,8 +172,7 @@ async def handle_user_message(message: types.Message, super_chat_id: int, bot):
         _logger.error(f"(exception on forwarding) {err}")
         return
 
-    bot.incoming_messages_count = F("incoming_messages_count") + 1
-    await bot.save(update_fields=["incoming_messages_count"])
+    asyncio.create_task(_increase_count(bot))
 
     # И отправить пользователю специальный текст, если он указан и если давно не отправляли
     if bot.second_text:
@@ -211,6 +229,8 @@ async def handle_operator_message(message: types.Message, super_chat_id: int, bo
 
     elif super_chat_id > 0:
         # в супер-чате кто-то пишет сообщение сам себе, только для личных сообщений
+        if bot.enable_mailing:
+            asyncio.create_task(MailingUser.get_or_create(telegram_id=message.chat.id, bot=bot))
         await message.forward(super_chat_id)
         # И отправить пользователю специальный текст, если он указан
         if bot.second_text:

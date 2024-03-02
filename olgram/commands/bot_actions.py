@@ -1,8 +1,13 @@
 """
 Здесь работа с конкретным ботом
 """
+import logging
+
 from aiogram import types
-from aiogram.utils.exceptions import TelegramAPIError, Unauthorized
+from asyncio import sleep
+from datetime import datetime
+from olgram.utils.mix import send_stored_message
+from aiogram.utils import exceptions
 from aiogram import Bot as AioBot
 from olgram.models.models import Bot, BotStartMessage, BotSecondMessage
 from server.server import unregister_token
@@ -15,14 +20,14 @@ async def delete_bot(bot: Bot, call: types.CallbackQuery):
     """
     try:
         await unregister_token(bot.decrypted_token())
-    except Unauthorized:
+    except exceptions.Unauthorized:
         # Вероятно пользователь сбросил токен или удалил бот, это уже не наши проблемы
         pass
     await bot.delete()
     await call.answer(_("Бот удалён"))
     try:
         await call.message.delete()
-    except TelegramAPIError:
+    except exceptions.TelegramAPIError:
         pass
 
 
@@ -84,7 +89,7 @@ async def select_chat(bot: Bot, call: types.CallbackQuery, chat: str):
             try:
                 await chat.delete()
                 await a_bot.leave_chat(chat.chat_id)
-            except TelegramAPIError:
+            except exceptions.TelegramAPIError:
                 pass
         await call.answer(_("Бот вышел из чатов"))
         await a_bot.session.close()
@@ -114,6 +119,11 @@ async def always_second_message(bot: Bot, call: types.CallbackQuery):
     await bot.save(update_fields=["enable_always_second_message"])
 
 
+async def thread_interrupt(bot: Bot, call: types.CallbackQuery):
+    bot.enable_thread_interrupt = not bot.enable_thread_interrupt
+    await bot.save(update_fields=["enable_thread_interrupt"])
+
+
 async def olgram_text(bot: Bot, call: types.CallbackQuery):
     if await bot.is_promo():
         bot.enable_olgram_text = not bot.enable_olgram_text
@@ -123,3 +133,38 @@ async def olgram_text(bot: Bot, call: types.CallbackQuery):
 async def antiflood(bot: Bot, call: types.CallbackQuery):
     bot.enable_antiflood = not bot.enable_antiflood
     await bot.save(update_fields=["enable_antiflood"])
+
+
+async def mailing(bot: Bot, call: types.CallbackQuery):
+    bot.enable_mailing = not bot.enable_mailing
+    await bot.save(update_fields=["enable_mailing"])
+
+
+async def go_mailing(bot: Bot, context: dict) -> int:
+    users = await bot.mailing_users
+    a_bot = AioBot(bot.decrypted_token())
+
+    count = 0
+
+    for user in users:
+        bot.last_mailing_at = datetime.now()
+        await bot.save(update_fields=["last_mailing_at"])
+        try:
+            await sleep(0.05)
+            try:
+                file_id = await send_stored_message(context, a_bot, user.telegram_id)
+            except exceptions.RetryAfter as err:
+                await sleep(err.timeout)
+                file_id = await send_stored_message(context, a_bot, user.telegram_id)
+
+            if file_id:
+                context["mailing_id"] = file_id
+            count += 1
+        except (exceptions.ChatNotFound, exceptions.BotBlocked, exceptions.UserDeactivated):
+            await user.delete()
+        except Exception as err:
+            logging.error("mailing error")
+            logging.error(err, exc_info=True)
+            pass
+
+    return count
