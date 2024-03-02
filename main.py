@@ -7,9 +7,9 @@ from olgram.settings import TORTOISE_ORM, OlgramSettings
 from olgram.utils.permissions import AccessMiddleware
 from server.custom import init_redis
 
+import olgram.commands.menu  # noqa: F401
 import olgram.commands.bots  # noqa: F401
 import olgram.commands.start  # noqa: F401
-import olgram.commands.menu  # noqa: F401
 import olgram.commands.bot_actions  # noqa: F401
 import olgram.commands.info  # noqa: F401
 import olgram.commands.promo  # noqa: F401

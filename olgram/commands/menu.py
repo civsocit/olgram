@@ -368,10 +368,14 @@ async def mailing_text_received(message: types.Message, state: FSMContext):
                 logging.error(err, exc_info=True)
                 return await message.answer(_("Не удалось загрузить файл (слишком большой размер?)"))
             proxy["mailing_data"] = buffer.getvalue()
-            proxy["mailing_file_name"] = getattr(obj, "file_name")
+            proxy["mailing_file_name"] = getattr(obj, "file_name", None)
         _message_id = await send_stored_message(proxy, AioBot.get_current(), message.chat.id)
 
     keyboard = types.InlineKeyboardMarkup(row_width=1)
+    keyboard.insert(
+        types.InlineKeyboardButton(text=_("<< Отменить рассылку"),
+                                   callback_data=menu_callback.new(level=1, bot_id=bot_id, operation=empty, chat=empty))
+    )
     keyboard.insert(
         types.InlineKeyboardButton(text=_("Да, начать рассылку"),
                                    callback_data=menu_callback.new(level=3, bot_id=bot_id, operation="go_go_mailing",
