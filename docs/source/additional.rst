@@ -10,7 +10,7 @@ Bitcoin:
     ``bc1qlq7cm5chc8flr3fy8ewk967aknq3dwmxtwn9hl``
 
 Litecoin:
-    ``LTC1QXAJSVZ0LW44AA5NYTUCH8CP2G8X7A4CDASE4Y7``
+    ``ltc1qxajsvz0lw44aa5nytuch8cp2g8x7a4cdase4y7``
 
 Как убрать "Этот бот создан с помощью ..."
 ----------------
