@@ -358,6 +358,8 @@ async def mailing_text_received(message: types.Message, state: FSMContext):
                 obj = message.audio
             elif message.content_type == types.ContentType.VIDEO:
                 obj = message.video
+            if obj.file_size and obj.file_size > 4194304:
+                return await message.answer(_("Слишком большой файл (4 Мб максимум)"))
 
             try:
                 await obj.download(buffer, timeout=5)
