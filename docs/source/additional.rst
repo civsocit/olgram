@@ -12,6 +12,9 @@ Bitcoin:
 Litecoin:
     ``ltc1qxajsvz0lw44aa5nytuch8cp2g8x7a4cdase4y7``
 
+Monero:
+    ``84ymMfpw3vxFxsgmYbFURMiZLgQCmhKsZNiZiqZRbpH2WRka2UDjyDVZpX8XH1cZ9d5EghvPXrF5hEuzvK5NvHGE8za4Gmk``
+
 Как убрать "Этот бот создан с помощью ..."
 ----------------
 Напишите нам на `@civsocit_feedback_bot <https://t.me/civsocit_feedback_bot>`_.
@@ -20,6 +23,7 @@ Litecoin:
 История изменений
 ----------------
 
+- `2024-03-15` Тэги
 - `2024-03-02` Рассылки
 - `2024-03-01` Непрерывные потоки сообщений (опция)
 - `2024-02-17` Опция смены режима работы автоответчика: автоответчик отвечает на КАЖДОЕ сообщение

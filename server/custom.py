@@ -40,6 +40,10 @@ def _message_unique_id(bot_id: int, message_id: int) -> str:
     return f"{bot_id}_{message_id}"
 
 
+def _tag_uid(bot_id: int, user_id: int) -> str:
+    return f"tag_{bot_id}_{user_id}"
+
+
 def _thread_unique_id(bot_id: int, chat_id: int) -> str:
     return f"thread_{bot_id}_{chat_id}"
 
@@ -89,6 +93,9 @@ async def send_user_message(message: types.Message, super_chat_id: int, bot):
             user_info += f" | lang: {message.from_user.locale}"
         if message.forward_sender_name:
             user_info += f" | fwd: {message.forward_sender_name}"
+        tag = await _redis.get(_tag_uid(bot.pk, message.from_user.id), encoding="utf-8")
+        if tag:
+            user_info += f" | tag: {tag}"
 
         # Добавлять информацию в конец текста
         if message.content_type == types.ContentType.TEXT \
@@ -216,6 +223,14 @@ async def handle_operator_message(message: types.Message, super_chat_id: int, bo
             else:
                 await banned_user.delete()
                 return SendMessage(chat_id=message.chat.id, text=_("Пользователь разбанен"))
+        if message.text.startswith("/tag "):
+            tag = message.text.replace("/tag ", "")[:20].strip()
+            if tag:
+                await _redis.set(_tag_uid(bot.pk, chat_id), tag, pexpire=ServerSettings.redis_timeout_ms())
+                return SendMessage(chat_id=message.chat.id, text=_("Тег выставлен"))
+            else:
+                await _redis.delete(_tag_uid(bot.pk, chat_id))
+                return SendMessage(chat_id=message.chat.id, text=_("Тег убран"))
 
         try:
             await message.copy_to(chat_id)
