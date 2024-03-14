@@ -40,7 +40,7 @@ def _message_unique_id(bot_id: int, message_id: int) -> str:
     return f"{bot_id}_{message_id}"
 
 
-def _thread_uniqie_id(bot_id: int, chat_id: int) -> str:
+def _thread_unique_id(bot_id: int, chat_id: int) -> str:
     return f"thread_{bot_id}_{chat_id}"
 
 
@@ -117,7 +117,7 @@ async def send_to_superchat(is_super_group: bool, message: types.Message, super_
             thread_timeout = ServerSettings.thread_timeout_ms()
         else:
             thread_timeout = ServerSettings.redis_timeout_ms()
-        thread_first_message = await _redis.get(_thread_uniqie_id(bot.pk, message.chat.id))
+        thread_first_message = await _redis.get(_thread_unique_id(bot.pk, message.chat.id))
         if thread_first_message:
             # переслать в супер-чат, отвечая на предыдущее сообщение
             try:
@@ -127,11 +127,11 @@ async def send_to_superchat(is_super_group: bool, message: types.Message, super_
             except exceptions.BadRequest:
                 new_message = await send_user_message(message, super_chat_id, bot)
                 await _redis.set(
-                    _thread_uniqie_id(bot.pk, message.chat.id), new_message.message_id, pexpire=thread_timeout)
+                    _thread_unique_id(bot.pk, message.chat.id), new_message.message_id, pexpire=thread_timeout)
         else:
             # переслать супер-чат
             new_message = await send_user_message(message, super_chat_id, bot)
-            await _redis.set(_thread_uniqie_id(bot.pk, message.chat.id), new_message.message_id,
+            await _redis.set(_thread_unique_id(bot.pk, message.chat.id), new_message.message_id,
                              pexpire=thread_timeout)
     else:  # личные сообщения не поддерживают потоки сообщений: просто отправляем сообщение
         await send_user_message(message, super_chat_id, bot)
