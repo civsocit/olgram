@@ -49,6 +49,7 @@ class Bot(Model):
     enable_always_second_message = fields.BooleanField(default=False)
     enable_thread_interrupt = fields.BooleanField(default=True)
     enable_mailing = fields.BooleanField(default=False)
+    enable_tags = fields.BooleanField(default=False)
     last_mailing_at = fields.DatetimeField(null=True, default=None)
 
     def decrypted_token(self):

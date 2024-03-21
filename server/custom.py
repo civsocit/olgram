@@ -254,7 +254,7 @@ async def handle_operator_message(message: types.Message, super_chat_id: int, bo
                 await banned_user.delete()
                 return SendMessage(chat_id=message.chat.id, text=_("Пользователь разбанен"))
         if bot.enable_tags:
-            if message.text.startswith("/tag "):
+            if message.text and message.text.startswith("/tag "):
                 tag = message.text.replace("/tag ", "")[:20].strip()
                 if tag:
                     await _redis.set(_tag_uid(bot.pk, chat_id), tag, pexpire=ServerSettings.redis_timeout_ms())
