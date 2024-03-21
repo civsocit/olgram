@@ -81,7 +81,7 @@ def _on_security_policy(message: types.Message, bot):
                        parse_mode="HTML")
 
 
-async def send_user_message(message: types.Message, super_chat_id: int, bot):
+async def send_user_message(message: types.Message, super_chat_id: int, bot, tag: str = ""):
     """Переслать сообщение от пользователя, добавлять к нему user info при необходимости"""
     if bot.enable_additional_info:
         user_info = _("Сообщение от пользователя ")
@@ -106,6 +106,15 @@ async def send_user_message(message: types.Message, super_chat_id: int, bot):
             new_message_2 = await message.copy_to(super_chat_id, reply_to_message_id=new_message.message_id)
             await _redis.set(_message_unique_id(bot.pk, new_message_2.message_id), message.chat.id,
                              pexpire=ServerSettings.redis_timeout_ms())
+    elif tag:
+        # добавлять тег в конец текста
+        if message.content_type == types.ContentType.TEXT and len(message.text) + len(tag) < 4093:
+            new_message = await message.bot.send_message(super_chat_id, message.text + "\n\n" + tag)
+        else:
+            new_message = await message.bot.send_message(super_chat_id, text=tag)
+            new_message_2 = await message.copy_to(super_chat_id, reply_to_message_id=new_message.message_id)
+            await _redis.set(_message_unique_id(bot.pk, new_message_2.message_id), message.chat.id,
+                             pexpire=ServerSettings.redis_timeout_ms())
     else:
         try:
             new_message = await message.forward(super_chat_id)
@@ -119,6 +128,13 @@ async def send_user_message(message: types.Message, super_chat_id: int, bot):
 
 async def send_to_superchat(is_super_group: bool, message: types.Message, super_chat_id: int, bot):
     """Пересылка сообщения от пользователя оператору (логика потоков сообщений)"""
+    if bot.enable_tags:
+        tag = await _redis.get(_tag_uid(bot.pk, message.chat.id))
+    else:
+        tag = ""
+    if tag:
+        tag = str(tag)
+
     if is_super_group and bot.enable_threads:
         if bot.enable_thread_interrupt:
             thread_timeout = ServerSettings.thread_timeout_ms()
@@ -128,20 +144,34 @@ async def send_to_superchat(is_super_group: bool, message: types.Message, super_
         if thread_first_message:
             # переслать в супер-чат, отвечая на предыдущее сообщение
             try:
-                new_message = await message.copy_to(super_chat_id, reply_to_message_id=int(thread_first_message))
+                if tag:
+                    if message.content_type == types.ContentType.TEXT and len(message.text) + len(tag) < 4093:
+                        new_message = await message.bot.send_message(
+                            super_chat_id,
+                            message.text + "\n\n" + tag,
+                            reply_to_message_id=int(thread_first_message))
+                    else:
+                        new_message = await message.copy_to(super_chat_id,
+                                                            reply_to_message_id=int(thread_first_message))
+                        new_message_2 = await message.bot.send_message(
+                            super_chat_id, reply_to_message_id=new_message.message_id, text=tag)
+                        await _redis.set(_message_unique_id(bot.pk, new_message_2.message_id), message.chat.id,
+                                         pexpire=thread_timeout)
+                else:
+                    new_message = await message.copy_to(super_chat_id, reply_to_message_id=int(thread_first_message))
                 await _redis.set(_message_unique_id(bot.pk, new_message.message_id), message.chat.id,
                                  pexpire=thread_timeout)
             except exceptions.BadRequest:
-                new_message = await send_user_message(message, super_chat_id, bot)
+                new_message = await send_user_message(message, super_chat_id, bot, tag)
                 await _redis.set(
                     _thread_unique_id(bot.pk, message.chat.id), new_message.message_id, pexpire=thread_timeout)
         else:
             # переслать супер-чат
-            new_message = await send_user_message(message, super_chat_id, bot)
+            new_message = await send_user_message(message, super_chat_id, bot, tag)
             await _redis.set(_thread_unique_id(bot.pk, message.chat.id), new_message.message_id,
                              pexpire=thread_timeout)
     else:  # личные сообщения не поддерживают потоки сообщений: просто отправляем сообщение
-        await send_user_message(message, super_chat_id, bot)
+        await send_user_message(message, super_chat_id, bot, tag)
 
 
 async def _increase_count(_bot):
@@ -223,14 +253,15 @@ async def handle_operator_message(message: types.Message, super_chat_id: int, bo
             else:
                 await banned_user.delete()
                 return SendMessage(chat_id=message.chat.id, text=_("Пользователь разбанен"))
-        if message.text.startswith("/tag "):
-            tag = message.text.replace("/tag ", "")[:20].strip()
-            if tag:
-                await _redis.set(_tag_uid(bot.pk, chat_id), tag, pexpire=ServerSettings.redis_timeout_ms())
-                return SendMessage(chat_id=message.chat.id, text=_("Тег выставлен"))
-            else:
-                await _redis.delete(_tag_uid(bot.pk, chat_id))
-                return SendMessage(chat_id=message.chat.id, text=_("Тег убран"))
+        if bot.enable_tags:
+            if message.text.startswith("/tag "):
+                tag = message.text.replace("/tag ", "")[:20].strip()
+                if tag:
+                    await _redis.set(_tag_uid(bot.pk, chat_id), tag, pexpire=ServerSettings.redis_timeout_ms())
+                    return SendMessage(chat_id=message.chat.id, text=_("Тег выставлен"))
+                else:
+                    await _redis.delete(_tag_uid(bot.pk, chat_id))
+                    return SendMessage(chat_id=message.chat.id, text=_("Тег убран"))
 
         try:
             await message.copy_to(chat_id)

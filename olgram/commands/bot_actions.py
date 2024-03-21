@@ -140,6 +140,11 @@ async def mailing(bot: Bot, call: types.CallbackQuery):
     await bot.save(update_fields=["enable_mailing"])
 
 
+async def tags(bot: Bot, call: types.CallbackQuery):
+    bot.enable_tags = not bot.enable_tags
+    await bot.save(update_fields=["enable_tags"])
+
+
 async def go_mailing(bot: Bot, context: dict) -> int:
     users = await bot.mailing_users
     a_bot = AioBot(bot.decrypted_token())
