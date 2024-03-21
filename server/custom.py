@@ -129,7 +129,7 @@ async def send_user_message(message: types.Message, super_chat_id: int, bot, tag
 async def send_to_superchat(is_super_group: bool, message: types.Message, super_chat_id: int, bot):
     """Пересылка сообщения от пользователя оператору (логика потоков сообщений)"""
     if bot.enable_tags:
-        tag = await _redis.get(_tag_uid(bot.pk, message.chat.id))
+        tag = await _redis.get(_tag_uid(bot.pk, message.chat.id), encoding="utf-8")
     else:
         tag = ""
     if tag:
