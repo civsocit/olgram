@@ -92,8 +92,11 @@ async def send_user_message(message: types.Message, super_chat_id: int, bot, tag
         if message.from_user.username:
             user_info += " | @" + message.from_user.username
         user_info += f" | #ID{message.from_user.id}"
-        if message.from_user.locale:
-            user_info += f" | lang: {message.from_user.locale}"
+        try:
+            if message.from_user.locale:
+                user_info += f" | lang: {message.from_user.locale}"
+        except Exception:
+            pass
         if message.forward_sender_name:
             user_info += f" | fwd: {message.forward_sender_name}"
         tag = await _redis.get(_tag_uid(bot.pk, message.from_user.id), encoding="utf-8")
@@ -222,7 +225,10 @@ async def handle_user_message(message: types.Message, super_chat_id: int, bot):
         send_auto = not await _redis.get(_last_message_uid(bot.pk, message.chat.id))
         await _redis.setex(_last_message_uid(bot.pk, message.chat.id), 60 * 60 * 3, 1)
         if send_auto or bot.enable_always_second_message:
-            text_obj = await BotSecondMessage.get_or_none(bot=bot, locale=str(message.from_user.locale))
+            try:
+                text_obj = await BotSecondMessage.get_or_none(bot=bot, locale=str(message.from_user.locale))
+            except Exception:
+                text_obj = None
             return SendMessage(chat_id=message.chat.id, text=text_obj.text if text_obj else bot.second_text,
                                parse_mode="HTML")
 
@@ -298,7 +304,10 @@ async def message_handler(message: types.Message, *args, **kwargs):
 
     if message.text and message.text == "/start":
         # На команду start нужно ответить, не пересылая сообщение никуда
-        text_obj = await BotStartMessage.get_or_none(bot=bot, locale=str(message.from_user.locale))
+        try:
+            text_obj = await BotStartMessage.get_or_none(bot=bot, locale=str(message.from_user.locale))
+        except Exception:
+            text_obj = None
         text = text_obj.text if text_obj else bot.start_text
         if bot.enable_olgram_text:
             text += _(ServerSettings.append_text())
