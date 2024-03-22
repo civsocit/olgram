@@ -205,6 +205,8 @@ async def handle_user_message(message: types.Message, super_chat_id: int, bot):
         await send_to_superchat(is_super_group, message, super_chat_id, bot)
     except (exceptions.Unauthorized, exceptions.ChatNotFound):
         return SendMessage(chat_id=message.chat.id, text=_("Не удаётся связаться с владельцем бота"))
+    except exceptions.RetryAfter:
+        return SendMessage(chat_id=message.chat.id, text=_("Слишком много сообщений, подождите одну минуту"))
     except exceptions.TelegramAPIError as err:
         _logger.error(f"(exception on forwarding) {err}")
         return
