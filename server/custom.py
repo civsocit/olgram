@@ -26,9 +26,12 @@ _redis: ty.Optional[Redis] = None
 
 
 def _get_translator(message: types.Message) -> ty.Callable:
-    if not message.from_user.locale:
+    try:
+        if not message.from_user.locale:
+            return _
+        return translators.get(message.from_user.locale.language, _)
+    except Exception:
         return _
-    return translators.get(message.from_user.locale.language, _)
 
 
 async def init_redis():
